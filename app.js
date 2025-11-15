@@ -29,7 +29,7 @@ app.get("/", (req, res) => res.json({ ok: true, service: "paper-trading-backend"
 // Connect to database
 connectDB();
 
-const PORT = 8000;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Morgan logging enabled`);
