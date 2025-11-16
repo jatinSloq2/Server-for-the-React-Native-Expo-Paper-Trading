@@ -6,7 +6,7 @@ import Transaction from "../models/Transaction.js";
 
 const signToken = (user) => {
   return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "1h",
+    expiresIn: "7d",
   });
 };
 
@@ -95,7 +95,23 @@ export const login = async (req, res) => {
     if (!match) return res.status(400).json({ message: "Invalid credentials" });
 
     const token = signToken(user);
-    const userSafe = { id: user._id, name: user.name, email: user.email, virtualBalance: user.virtualBalance, role: user.role };
+    const userSafe = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      provider: user.provider,
+      providerId: user.providerId,
+      role: user.role,
+      virtualBalance: user.virtualBalance,
+      currency: user.currency,
+      phone: user.phone,
+      country: user.country,
+      isActive: user.isActive,
+      blocked: user.blocked,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
 
     res.json({ message: "Authenticated", token, user: userSafe });
   } catch (err) {
