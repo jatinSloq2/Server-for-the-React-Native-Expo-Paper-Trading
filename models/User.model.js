@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
 
   // Optional KYC / profile fields useful for trading app
   phone: { type: String, default: null },
-  country: { type: String, default: null },
+  country: { type: String, default: "India" },
 
   // Safety / status
   isActive: { type: Boolean, default: true },
