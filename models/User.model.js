@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ["user", "admin"], default: "user" },
 
   // Balance & trading-related
-  virtualBalance: { type: Number, default: Number(process.env.DEFAULT_VIRTUAL_BALANCE || 100000) },
+  virtualBalance: { type: Number, default: 0 },
   currency: { type: String, default: "INR" },
 
   // Password reset token (dev-friendly). In production hash this.

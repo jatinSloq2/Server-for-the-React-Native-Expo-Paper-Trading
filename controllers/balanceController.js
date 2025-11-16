@@ -143,14 +143,52 @@ export const setBalanceZero = async (req, res) => {
 export const getBalanceHistory = async (req, res) => {
   try {
     const userId = req.user._id;
+
     const limit = parseInt(req.query.limit || "50", 10);
     const page = parseInt(req.query.page || "1", 10);
     const skip = (page - 1) * limit;
 
-    const txs = await Transaction.find({ userId }).sort({ createdAt: -1 }).skip(skip).limit(limit);
-    res.json({ transactions: txs });
+    const transactions = await Transaction.find({ userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Aggregate totals
+    const totals = await Transaction.aggregate([
+      { $match: { userId } },
+      {
+        $group: {
+          _id: null,
+          totalCredit: {
+            $sum: {
+              $cond: [{ $eq: ["$type", "CREDIT"] }, "$amount", 0]
+            }
+          },
+          totalDebit: {
+            $sum: {
+              $cond: [{ $eq: ["$type", "DEBIT"] }, "$amount", 0]
+            }
+          }
+        }
+      }
+    ]);
+
+    const totalCredit = totals[0]?.totalCredit || 0;
+    const totalDebit = totals[0]?.totalDebit || 0;
+
+    res.json({
+      page,
+      limit,
+      transactions,
+      summary: {
+        totalCredit,
+        totalDebit
+      }
+    });
+
   } catch (err) {
     console.error("getBalanceHistory error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+

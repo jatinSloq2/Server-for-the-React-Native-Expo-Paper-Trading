@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import User from "../models/User.model.js";
+import Transaction from "../models/Transaction.js";
 
 const signToken = (user) => {
   return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
@@ -12,23 +13,74 @@ const signToken = (user) => {
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ message: "name, email and password are required" });
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "name, email and password are required" });
+    }
 
     const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ message: "Email already registered" });
+    if (existing) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
 
+    // Hash password
     const hash = await bcrypt.hash(password, 12);
-    const user = await User.create({ name, email, password: hash });
 
+    // Create user with zero balance initially
+    const user = await User.create({
+      name,
+      email,
+      password: hash,
+      virtualBalance: 0,
+    });
+
+    // -------------------------------------
+    // STEP 1: INITIAL CREDIT OF ₹1,00,000
+    // -------------------------------------
+    const initialAmount = 100000;
+    const balanceBefore = 0;
+    const balanceAfter = initialAmount;
+
+    // Update user balance
+    user.virtualBalance = balanceAfter;
+    await user.save();
+
+    // Create transaction for the credit
+    await Transaction.create({
+      userId: user._id,
+      type: "CREDIT",
+      amount: initialAmount,
+      balanceBefore,
+      balanceAfter,
+      reason: "INITIAL_CREDIT",
+      meta: { info: "Signup bonus" }
+    });
+
+    // -------------------------------------
+    // STEP 2: ISSUE JWT TOKEN
+    // -------------------------------------
     const token = signToken(user);
-    const userSafe = { id: user._id, name: user.name, email: user.email, virtualBalance: user.virtualBalance, role: user.role };
 
-    res.status(201).json({ message: "Registered", token, user: userSafe });
+    const userSafe = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      virtualBalance: user.virtualBalance,
+      role: user.role
+    };
+
+    res.status(201).json({
+      message: "Registered",
+      token,
+      user: userSafe
+    });
+
   } catch (err) {
     console.error("register error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 
 export const login = async (req, res) => {
   try {
