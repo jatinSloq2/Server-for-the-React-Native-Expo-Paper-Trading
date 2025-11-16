@@ -285,17 +285,110 @@ export const changePassword = async (req, res) => {
   }
 };
 
+export const updateNotificationPreferences = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const updates = req.body;
+
+    // Validate notification preference keys
+    const allowedPreferences = [
+      'email', 
+      'push', 
+      'sms', 
+      'tradeExecutions', 
+      'marketNews', 
+      'priceAlerts'
+    ];
+    
+    const preferencesUpdates = {};
+
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedPreferences.includes(key)) {
+        // Validate boolean values
+        if (typeof value !== 'boolean') {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid value for ${key}. Must be a boolean.`
+          });
+        }
+        preferencesUpdates[`notificationPreferences.${key}`] = value;
+      }
+    }
+
+    // Check if any preferences were provided
+    if (Object.keys(preferencesUpdates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid notification preferences provided'
+      });
+    }
+
+    // Get current user to check channel constraints
+    const currentUser = await User.findById(userId);
+    
+    // Ensure at least one notification channel remains enabled
+    if (updates.email === false || updates.push === false || updates.sms === false) {
+      const channels = {
+        email: updates.email !== undefined ? updates.email : currentUser.notificationPreferences.email,
+        push: updates.push !== undefined ? updates.push : currentUser.notificationPreferences.push,
+        sms: updates.sms !== undefined ? updates.sms : currentUser.notificationPreferences.sms
+      };
+      
+      if (!channels.email && !channels.push && !channels.sms) {
+        return res.status(400).json({
+          success: false,
+          message: 'At least one notification channel must remain enabled'
+        });
+      }
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: preferencesUpdates },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    res.json({
+      success: true,
+      message: 'Notification preferences updated successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Update notification preferences error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update notification preferences'
+    });
+  }
+};
+
 export const updateSettings = async (req, res) => {
   try {
     const userId = req.user.id;
     const updates = req.body;
 
     // Validate settings keys
-    const allowedSettings = ['notifications', 'priceAlerts', 'darkMode', 'biometricLogin', 'autoRefreshInterval'];
+    const allowedSettings = [
+      'notifications', 
+      'priceAlerts', 
+      'darkMode', 
+      'biometricLogin', 
+      'autoRefreshInterval',
+      'language'
+    ];
+    
     const settingsUpdates = {};
 
     for (const [key, value] of Object.entries(updates)) {
       if (allowedSettings.includes(key)) {
+        if (key === 'autoRefreshInterval') {
+          if (typeof value !== 'number' || value < 1 || value > 60) {
+            return res.status(400).json({
+              success: false,
+              message: 'Auto refresh interval must be between 1 and 60 seconds'
+            });
+          }
+        }
         settingsUpdates[`settings.${key}`] = value;
       }
     }
