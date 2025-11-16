@@ -232,3 +232,38 @@ export const changePassword = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
+export const updateSettings = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const updates = req.body;
+
+    // Validate settings keys
+    const allowedSettings = ['notifications', 'priceAlerts', 'darkMode', 'biometricLogin', 'autoRefreshInterval'];
+    const settingsUpdates = {};
+
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedSettings.includes(key)) {
+        settingsUpdates[`settings.${key}`] = value;
+      }
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: settingsUpdates },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    res.json({
+      success: true,
+      message: 'Settings updated successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Update settings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update settings'
+    });
+  }
+};

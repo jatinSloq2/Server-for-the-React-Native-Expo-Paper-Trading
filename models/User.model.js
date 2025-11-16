@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true }, // hashed
   avatar: { type: String, default: null },
 
-  // OAuth provider fields (if you add Google later)
+  // OAuth provider fields
   provider: { type: String, enum: ["local", "google"], default: "local" },
   providerId: { type: String, default: null },
 
@@ -17,13 +17,33 @@ const userSchema = new mongoose.Schema({
   virtualBalance: { type: Number, default: 0 },
   currency: { type: String, default: "INR" },
 
-  // Password reset token (dev-friendly). In production hash this.
+  // Password reset token
   resetPasswordToken: { type: String, default: null },
   resetPasswordTokenExpiry: { type: Date, default: null },
 
-  // Optional KYC / profile fields useful for trading app
+  // Profile fields
   phone: { type: String, default: null },
   country: { type: String, default: "India" },
+
+  // App Settings - NEW
+  settings: {
+    notifications: { type: Boolean, default: true },
+    priceAlerts: { type: Boolean, default: false },
+    darkMode: { type: Boolean, default: false },
+    biometricLogin: { type: Boolean, default: false },
+    autoRefreshInterval: { type: Number, default: 5 }, // in seconds
+    language: { type: String, default: "en" },
+  },
+
+  // Notification Preferences - NEW
+  notificationPreferences: {
+    email: { type: Boolean, default: true },
+    push: { type: Boolean, default: true },
+    sms: { type: Boolean, default: false },
+    tradeExecutions: { type: Boolean, default: true },
+    marketNews: { type: Boolean, default: true },
+    priceAlerts: { type: Boolean, default: true },
+  },
 
   // Safety / status
   isActive: { type: Boolean, default: true },
