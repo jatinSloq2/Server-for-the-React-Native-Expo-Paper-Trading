@@ -1,5 +1,5 @@
 import {Router} from "express"
-import { submitSupportTicket } from "../controllers/supportController.js"
+import { getAllTickets, getMyTickets, submitSupportTicket } from "../controllers/supportController.js"
 import auth from "../middleware/authMiddleware.js";
 import admin from "../middleware/admin.js";
 
@@ -9,6 +9,6 @@ router.post("/create", submitSupportTicket)
 router.get("/my-tickets", auth, getMyTickets);
 
 
-router.get("/all", authMiddleware, admin,getAllTickets);
+router.get("/all", auth, admin,getAllTickets);
 
 export default router
