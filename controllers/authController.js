@@ -12,7 +12,7 @@ const signToken = (user) => {
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone, country = "INDIA" } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "name, email and password are required" });
@@ -32,6 +32,7 @@ export const register = async (req, res) => {
       email,
       password: hash,
       virtualBalance: 0,
+      phone, country
     });
 
     // -------------------------------------
