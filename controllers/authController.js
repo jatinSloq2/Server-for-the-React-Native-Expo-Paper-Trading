@@ -121,7 +121,6 @@ export const login = async (req, res) => {
 };
 
 export const me = async (req, res) => {
-  // auth middleware sets req.user
   const u = req.user.toObject();
   delete u.password;
   res.json({ user: u });

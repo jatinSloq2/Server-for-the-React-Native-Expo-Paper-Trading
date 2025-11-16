@@ -33,7 +33,9 @@ export const addBalance = async (req, res) => {
   try {
     const { amount, reason = "ADD_FUNDS", meta = {} } = req.body;
     if (typeof amount !== "number" || amount <= 0) return res.status(400).json({ message: "amount must be a positive number" });
-
+    if (amount > 100000) {
+      return res.status(400).json({ message: "Amount cannot exceed 1,00,000 in a single transaction" });
+    }
     const user = req.user;
     const { tx } = await recordTransaction({ user, type: "CREDIT", amount, reason, meta });
 
