@@ -1,4 +1,9 @@
 {
+  "name": "paper-trading-backend",
+  "version": "1.0.0",
+  "description": "Backend server for the paper trading application",
+  "main": "app.js",
+  "type": "module",
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js"
@@ -15,5 +20,10 @@
     "morgan": "^1.10.1",
     "mysql2": "^3.15.3",
     "sequelize": "^6.37.7"
-  }
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "author": "Jatin Singh",
+  "license": "ISC"
 }
