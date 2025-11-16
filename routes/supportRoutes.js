@@ -5,7 +5,7 @@ import admin from "../middleware/admin.js";
 
 const router = Router()
 
-router.post("/create", submitSupportTicket)
+router.post("/create", auth,submitSupportTicket)
 router.get("/my-tickets", auth, getMyTickets);
 
 
