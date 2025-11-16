@@ -161,3 +161,59 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { name, phone, country, avatar } = req.body;
+
+    const updates = {};
+
+    if (name) updates.name = name;
+    if (phone) updates.phone = phone;
+    if (country) updates.country = country;
+    if (avatar) updates.avatar = avatar;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updates },
+      { new: true }
+    ).select("-password -resetPasswordToken -resetPasswordTokenExpiry");
+
+    res.json({
+      message: "Profile updated successfully",
+      user: updatedUser
+    });
+
+  } catch (err) {
+    console.error("updateProfile error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "currentPassword and newPassword are required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const match = await bcrypt.compare(currentPassword, user.password);
+    if (!match) return res.status(400).json({ message: "Old password is incorrect" });
+
+    // Set new password
+    user.password = await bcrypt.hash(newPassword, 12);
+    await user.save();
+
+    res.json({ message: "Password changed successfully" });
+
+  } catch (err) {
+    console.error("changePassword error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
