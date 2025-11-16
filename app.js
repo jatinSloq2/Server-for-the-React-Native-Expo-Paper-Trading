@@ -6,6 +6,7 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import balanceRoutes from "./routes/balanceRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
+import stockRoutes from "./routes/stockRoutes.js";
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use(morgan("combined"));
 app.use("/api/auth", authRoutes);
 app.use("/api/balance", balanceRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/stocks", stockRoutes);
 
 // Health check
 app.get("/", (req, res) => res.json({ ok: true, service: "paper-trading-backend" }));
