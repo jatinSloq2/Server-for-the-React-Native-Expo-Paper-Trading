@@ -82,19 +82,36 @@ export const register = async (req, res) => {
   }
 };
 
-
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: "email and password required" });
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password required" });
+    }
 
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    // Check if user is blocked
+    if (user.blocked) {
+      return res.status(403).json({ message: "Your account has been blocked. Please contact support." });
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(403).json({ message: "Your account is inactive. Please contact support." });
+    }
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ message: "Invalid credentials" });
+    if (!match) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
 
     const token = signToken(user);
+
+    // Comprehensive user data with all settings
     const userSafe = {
       id: user._id,
       name: user.name,
@@ -103,20 +120,55 @@ export const login = async (req, res) => {
       provider: user.provider,
       providerId: user.providerId,
       role: user.role,
+
+      // Balance & Trading
       virtualBalance: user.virtualBalance,
       currency: user.currency,
+
+      // Profile
       phone: user.phone,
       country: user.country,
+
+      // App Settings
+      settings: {
+        notifications: user.settings?.notifications ?? true,
+        priceAlerts: user.settings?.priceAlerts ?? false,
+        darkMode: user.settings?.darkMode ?? false,
+        biometricLogin: user.settings?.biometricLogin ?? false,
+        autoRefreshInterval: user.settings?.autoRefreshInterval ?? 5,
+        language: user.settings?.language ?? "en",
+      },
+
+      // Notification Preferences
+      notificationPreferences: {
+        email: user.notificationPreferences?.email ?? true,
+        push: user.notificationPreferences?.push ?? true,
+        sms: user.notificationPreferences?.sms ?? false,
+        tradeExecutions: user.notificationPreferences?.tradeExecutions ?? true,
+        marketNews: user.notificationPreferences?.marketNews ?? true,
+        priceAlerts: user.notificationPreferences?.priceAlerts ?? true,
+      },
+
+      // Status
       isActive: user.isActive,
       blocked: user.blocked,
+
+      // Timestamps
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
 
-    res.json({ message: "Authenticated", token, user: userSafe });
+    res.json({
+      message: "Authenticated successfully",
+      token,
+      user: userSafe
+    });
   } catch (err) {
-    console.error("login error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error("Login error:", err);
+    res.status(500).json({
+      message: "Server error",
+      error: err.message
+    });
   }
 };
 
