@@ -1,6 +1,8 @@
 import express from "express";
 import { executeBuyOrder, executeSellOrder, executePartialExit } from "../services/tradingService.js";
 import auth from "../middleware/authMiddleware.js";
+import Position from "../models/positionSchema.js";
+import Order from "../models/orderSchema.js";
 
 const router = express.Router();
 
