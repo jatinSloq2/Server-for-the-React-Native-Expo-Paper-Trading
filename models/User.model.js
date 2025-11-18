@@ -15,7 +15,7 @@ const userSchema = new mongoose.Schema({
 
   // Balance & trading-related
   virtualBalance: { type: Number, default: 0 },
-  currency: { type: String, default: "INR" },
+  currency: { type: String, default: "USD" },
 
   // Password reset token
   resetPasswordToken: { type: String, default: null },

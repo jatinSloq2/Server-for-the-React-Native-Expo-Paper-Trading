@@ -7,6 +7,7 @@ import authRoutes from "./routes/authRoutes.js";
 import balanceRoutes from "./routes/balanceRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
 import stockRoutes from "./routes/stockRoutes.js";
+import tradingRoutes from "./routes/tradingRoutes.js";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/balance", balanceRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/stocks", stockRoutes);
+app.use("/api/trading", tradingRoutes);
 
 // Health check
 app.get("/", (req, res) => res.json({ ok: true, service: "paper-trading-backend" }));
