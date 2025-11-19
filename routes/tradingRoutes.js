@@ -3,36 +3,56 @@ import { executeBuyOrder, executeSellOrder, executePartialExit } from "../servic
 import auth from "../middleware/authMiddleware.js";
 import Position from "../models/positionSchema.js";
 import Order from "../models/orderSchema.js";
+import User from "../models/User.model.js";
 
 const router = express.Router();
 
 // Place Buy Order
 router.post("/order/buy", auth, async (req, res) => {
+    console.log("\n🔷 === BUY ORDER ENDPOINT HIT ===");
+    console.log("User ID:", req.user.id);
+    console.log("Request Body:", JSON.stringify(req.body, null, 2));
+
     try {
         const result = await executeBuyOrder(req.user.id, req.body);
+        console.log("✅ Buy order successful");
         res.json({ success: true, data: result });
     } catch (error) {
+        console.error("❌ Buy order failed:", error.message);
         res.status(400).json({ success: false, message: error.message });
     }
 });
 
 // Place Sell Order
 router.post("/order/sell", auth, async (req, res) => {
+    console.log("\n🔶 === SELL ORDER ENDPOINT HIT ===");
+    console.log("User ID:", req.user.id);
+    console.log("Request Body:", JSON.stringify(req.body, null, 2));
+
     try {
         const result = await executeSellOrder(req.user.id, req.body);
+        console.log("✅ Sell order successful");
         res.json({ success: true, data: result });
     } catch (error) {
+        console.error("❌ Sell order failed:", error.message);
         res.status(400).json({ success: false, message: error.message });
     }
 });
 
 // Partial Exit
 router.post("/order/partial-exit/:orderId", auth, async (req, res) => {
+    console.log("\n🟨 === PARTIAL EXIT ENDPOINT HIT ===");
+    console.log("Order ID:", req.params.orderId);
+    console.log("User ID:", req.user.id);
+    console.log("Request Body:", JSON.stringify(req.body, null, 2));
+
     try {
         const { exitPercentage } = req.body;
         const result = await executePartialExit(req.params.orderId, exitPercentage);
+        console.log("✅ Partial exit successful");
         res.json({ success: true, data: result });
     } catch (error) {
+        console.error("❌ Partial exit failed:", error.message);
         res.status(400).json({ success: false, message: error.message });
     }
 });
@@ -66,6 +86,10 @@ router.get("/orders", auth, async (req, res) => {
 
 // Cancel Order
 router.put("/order/cancel/:orderId", auth, async (req, res) => {
+    console.log("\n⚪ === CANCEL ORDER ENDPOINT HIT ===");
+    console.log("Order ID:", req.params.orderId);
+    console.log("User ID:", req.user.id);
+
     try {
         const order = await Order.findOne({ _id: req.params.orderId, userId: req.user.id });
 
@@ -79,19 +103,21 @@ router.put("/order/cancel/:orderId", auth, async (req, res) => {
 
         // Refund the amount
         const user = await User.findById(req.user.id);
-        user.virtualBalance += (order.investedAmount + order.charges.totalCharges);
+        const refundAmount = order.investedAmount + order.charges.totalCharges;
+
+        console.log(`💰 Refunding $${refundAmount.toFixed(2)}`);
+
+        user.virtualBalance = parseFloat(user.virtualBalance) + parseFloat(refundAmount);
         await user.save();
 
         order.status = "CANCELLED";
         await order.save();
 
-        // Create refund transaction
-        await createTransaction(req.user.id, "CREDIT", order.investedAmount + order.charges.totalCharges, "ORDER_CANCELLED", {
-            orderId: order._id
-        });
+        console.log("✅ Order cancelled successfully");
 
         res.json({ success: true, data: order });
     } catch (error) {
+        console.error("❌ Cancel order failed:", error.message);
         res.status(500).json({ success: false, message: error.message });
     }
 });
