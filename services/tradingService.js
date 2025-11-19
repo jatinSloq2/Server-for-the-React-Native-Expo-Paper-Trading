@@ -61,30 +61,41 @@ export const executeBuyOrder = async (userId, orderData) => {
   console.log("Order Data:", JSON.stringify(orderData, null, 2));
 
   try {
-    const { symbol, quantity, orderType, limitPrice, stopLossPrice, takeProfitPrice } = orderData;
+    const { symbol, quantity, orderType, currentPrice: frontendPrice, limitPrice, stopLossPrice, takeProfitPrice } = orderData;
 
     // Validate inputs
     if (!quantity || quantity <= 0) {
       throw new Error("Invalid quantity");
     }
 
-    console.log(`📊 Fetching price for ${symbol}...`);
+    // Use price from frontend if provided, otherwise fetch from Binance
+    let currentPrice;
 
-    // Fetch current price from Binance
-    const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
-    const data = await response.json();
+    if (frontendPrice && !isNaN(frontendPrice) && frontendPrice > 0) {
+      currentPrice = parseFloat(frontendPrice);
+      console.log(`💰 Using Frontend Price: $${currentPrice}`);
+    } else {
+      console.log(`📊 Fetching price from Binance for ${symbol}...`);
+      try {
+        const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+        const data = await response.json();
 
-    console.log("🔍 Raw Binance Response:", JSON.stringify(data, null, 2));
+        if (data.code !== undefined) {
+          // Binance returned an error
+          throw new Error(data.msg || "Binance API error");
+        }
 
-    // The price comes as a string in the 'price' field
-    const currentPrice = parseFloat(data.price);
-
-    if (!currentPrice || isNaN(currentPrice)) {
-      console.error("❌ Failed to parse price from Binance:", data);
-      throw new Error("Failed to fetch current price from market");
+        currentPrice = parseFloat(data.price);
+        console.log(`💰 Binance Price: $${currentPrice}`);
+      } catch (fetchError) {
+        console.error("❌ Failed to fetch from Binance:", fetchError.message);
+        throw new Error("Please provide current price or check Binance API availability");
+      }
     }
 
-    console.log(`💰 Current Price: $${currentPrice}`);
+    if (!currentPrice || isNaN(currentPrice)) {
+      throw new Error("Invalid current price");
+    }
 
     // Use currentPrice if limitPrice is not provided or invalid
     const entryPrice = (orderType === "LIMIT" && limitPrice && !isNaN(limitPrice))
@@ -217,14 +228,14 @@ export const executeBuyOrder = async (userId, orderData) => {
   }
 };
 
-// Sell Order Service - Fix the same issue
+// Sell Order Service
 export const executeSellOrder = async (userId, orderData) => {
   console.log("\n🔴 === SELL ORDER INITIATED ===");
   console.log("User ID:", userId);
   console.log("Order Data:", JSON.stringify(orderData, null, 2));
 
   try {
-    const { symbol, quantity, orderType, limitPrice, isPartialExit, exitPercentage } = orderData;
+    const { symbol, quantity, orderType, currentPrice: frontendPrice, limitPrice, isPartialExit, exitPercentage } = orderData;
 
     // Find active position
     const position = await Position.findOne({ userId, symbol, status: "ACTIVE" });
@@ -249,24 +260,38 @@ export const executeSellOrder = async (userId, orderData) => {
 
     console.log(`📉 Sell Quantity: ${sellQuantity}`);
 
-    // Fetch current price
-    const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
-    const data = await response.json();
+    // Use price from frontend if provided, otherwise fetch from Binance
+    let currentPrice;
 
-    console.log("🔍 Raw Binance Response:", JSON.stringify(data, null, 2));
+    if (frontendPrice && !isNaN(frontendPrice) && frontendPrice > 0) {
+      currentPrice = parseFloat(frontendPrice);
+      console.log(`💰 Using Frontend Price: $${currentPrice}`);
+    } else {
+      console.log(`📊 Fetching price from Binance for ${symbol}...`);
+      try {
+        const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+        const data = await response.json();
 
-    const currentPrice = parseFloat(data.price);
+        if (data.code !== undefined) {
+          throw new Error(data.msg || "Binance API error");
+        }
+
+        currentPrice = parseFloat(data.price);
+        console.log(`💰 Binance Price: $${currentPrice}`);
+      } catch (fetchError) {
+        console.error("❌ Failed to fetch from Binance:", fetchError.message);
+        throw new Error("Please provide current price or check Binance API availability");
+      }
+    }
 
     if (!currentPrice || isNaN(currentPrice)) {
-      console.error("❌ Failed to parse price from Binance:", data);
-      throw new Error("Failed to fetch current price from market");
+      throw new Error("Invalid current price");
     }
 
     const exitPrice = (orderType === "LIMIT" && limitPrice && !isNaN(limitPrice))
       ? parseFloat(limitPrice)
       : currentPrice;
 
-    console.log(`💰 Current Price: $${currentPrice}`);
     console.log(`🎯 Exit Price: $${exitPrice}`);
 
     // Calculate P&L with validated numbers
@@ -388,10 +413,15 @@ export const executePartialExit = async (orderId, exitPercentage) => {
     const exitQuantity = (order.remainingQuantity * exitPercentage) / 100;
     console.log(`📉 Exit Quantity: ${exitQuantity}`);
 
-    // Fetch current price
+    // Fetch current price (for partial exit, we need fresh price)
     const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${order.symbol}`);
-    const { price: currentPrice } = await response.json();
-    const exitPrice = parseFloat(currentPrice);
+    const data = await response.json();
+
+    if (data.code !== undefined) {
+      throw new Error(data.msg || "Failed to fetch current price");
+    }
+
+    const exitPrice = parseFloat(data.price);
 
     console.log(`💰 Exit Price: $${exitPrice}`);
 
