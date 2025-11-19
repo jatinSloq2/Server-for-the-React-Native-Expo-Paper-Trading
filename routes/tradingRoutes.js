@@ -84,6 +84,48 @@ router.get("/orders", auth, async (req, res) => {
     }
 });
 
+// Get User Positions for a specific symbol
+router.get("/positions/symbol", auth, async (req, res) => {
+    try {
+        const { symbol } = req.query;
+
+        if (!symbol) {
+            return res.status(400).json({ success: false, message: "Symbol is required" });
+        }
+
+        const positions = await Position.find({
+            userId: req.user.id,
+            status: "ACTIVE",
+            symbol: symbol.toUpperCase()
+        }).sort({ createdAt: -1 });
+
+        res.json({ success: true, data: positions });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Get User Orders for a specific symbol
+router.get("/orders/symbol", auth, async (req, res) => {
+    try {
+        const { symbol, status } = req.query;
+
+        if (!symbol) {
+            return res.status(400).json({ success: false, message: "Symbol is required" });
+        }
+
+        const query = { userId: req.user.id, symbol: symbol.toUpperCase() };
+        if (status) query.status = status;
+
+        const orders = await Order.find(query).sort({ createdAt: -1 });
+
+        res.json({ success: true, data: orders });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
 // Cancel Order
 router.put("/order/cancel/:orderId", auth, async (req, res) => {
     console.log("\n⚪ === CANCEL ORDER ENDPOINT HIT ===");
