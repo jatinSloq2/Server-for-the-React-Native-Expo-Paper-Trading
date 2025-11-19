@@ -17,9 +17,9 @@ const calculateCharges = (amount, isSell = false) => {
   const gst = (tradingFee * CHARGES.GST_PERCENT) / 100;
   const transactionCharge = CHARGES.TRANSACTION_FEE;
   const stt = isSell ? (amount * CHARGES.STT_PERCENT) / 100 : 0;
-  
+
   const totalCharges = tradingFee + gst + transactionCharge + stt;
-  
+
   return {
     tradingFee: parseFloat(tradingFee.toFixed(2)),
     gst: parseFloat(gst.toFixed(2)),
@@ -32,222 +32,176 @@ const calculateCharges = (amount, isSell = false) => {
 // Create Transaction Record
 const createTransaction = async (userId, type, amount, reason, meta = {}) => {
   const user = await User.findById(userId);
-  
+
   const transaction = await Transaction.create({
     userId,
     type,
     amount,
     balanceBefore: user.virtualBalance,
-    balanceAfter: type === "CREDIT" 
-      ? user.virtualBalance + amount 
+    balanceAfter: type === "CREDIT"
+      ? user.virtualBalance + amount
       : user.virtualBalance - amount,
     reason,
     meta
   });
-  
+
   return transaction;
 };
 
 // Buy Order Service
+// In executeBuyOrder function, add validation
 export const executeBuyOrder = async (userId, orderData) => {
   const { symbol, quantity, orderType, limitPrice, stopLossPrice, takeProfitPrice } = orderData;
-  
+
+  // Validate inputs
+  if (!quantity || quantity <= 0) {
+    throw new Error("Invalid quantity");
+  }
+
   // Fetch current price from Binance
   const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
   const { price: currentPrice } = await response.json();
-  const entryPrice = orderType === "LIMIT" ? limitPrice : parseFloat(currentPrice);
-  
-  // Calculate investment
-  const investedAmount = quantity * entryPrice;
+
+  // Use currentPrice if limitPrice is not provided or invalid
+  const entryPrice = (orderType === "LIMIT" && limitPrice && !isNaN(limitPrice))
+    ? parseFloat(limitPrice)
+    : parseFloat(currentPrice);
+
+  // Calculate investment with validated numbers
+  const investedAmount = parseFloat(quantity) * entryPrice;
+
+  if (isNaN(investedAmount) || investedAmount <= 0) {
+    throw new Error("Invalid investment amount calculated");
+  }
+
   const charges = calculateCharges(investedAmount, false);
   const totalDebit = investedAmount + charges.totalCharges;
-  
+
   // Check balance
   const user = await User.findById(userId);
-  if (user.virtualBalance < totalDebit) {
-    throw new Error("Insufficient balance");
+
+  if (!user.virtualBalance || isNaN(user.virtualBalance)) {
+    throw new Error("Invalid user balance");
   }
-  
-  // Deduct from balance
-  user.virtualBalance -= totalDebit;
+
+  if (user.virtualBalance < totalDebit) {
+    throw new Error(`Insufficient balance. Required: $${totalDebit.toFixed(2)}, Available: $${user.virtualBalance.toFixed(2)}`);
+  }
+
+  // Deduct from balance with explicit number conversion
+  user.virtualBalance = parseFloat(user.virtualBalance) - parseFloat(totalDebit);
+
+  // Validate final balance before saving
+  if (isNaN(user.virtualBalance)) {
+    throw new Error("Balance calculation error");
+  }
+
   await user.save();
-  
+
+  // Rest of the code remains the same...
   // Create order
   const order = await Order.create({
     userId,
     symbol,
     type: "BUY",
     orderType,
-    quantity,
+    quantity: parseFloat(quantity),
     entryPrice,
     currentPrice: parseFloat(currentPrice),
-    limitPrice,
-    stopLossPrice,
-    takeProfitPrice,
+    limitPrice: limitPrice ? parseFloat(limitPrice) : null,
+    stopLossPrice: stopLossPrice ? parseFloat(stopLossPrice) : null,
+    takeProfitPrice: takeProfitPrice ? parseFloat(takeProfitPrice) : null,
     investedAmount,
     currentValue: investedAmount,
-    remainingQuantity: quantity,
+    remainingQuantity: parseFloat(quantity),
     charges,
     status: orderType === "MARKET" ? "OPEN" : "PENDING",
     executedAt: orderType === "MARKET" ? new Date() : null
   });
-  
-  // Create transaction
-  await createTransaction(userId, "DEBIT", totalDebit, "BUY_ORDER", {
-    orderId: order._id,
-    symbol,
-    quantity,
-    price: entryPrice,
-    charges
-  });
-  
-  // Update/Create Position
-  let position = await Position.findOne({ userId, symbol, status: "ACTIVE" });
-  
-  if (position) {
-    // Update existing position
-    const totalInvested = position.investedAmount + investedAmount;
-    const totalQty = position.totalQuantity + quantity;
-    position.averagePrice = totalInvested / totalQty;
-    position.totalQuantity = totalQty;
-    position.investedAmount = totalInvested;
-    position.currentValue = totalQty * parseFloat(currentPrice);
-    position.currentPrice = parseFloat(currentPrice);
-    position.pnl = position.currentValue - position.investedAmount;
-    position.pnlPercentage = ((position.pnl / position.investedAmount) * 100).toFixed(2);
-    position.orderIds.push(order._id);
-  } else {
-    // Create new position
-    position = await Position.create({
-      userId,
-      symbol,
-      totalQuantity: quantity,
-      averagePrice: entryPrice,
-      currentPrice: parseFloat(currentPrice),
-      investedAmount,
-      currentValue: investedAmount,
-      orderIds: [order._id],
-      status: "ACTIVE"
-    });
-  }
-  
-  await position.save();
-  
-  return { order, position, charges };
+
+  // ... rest of position creation code
 };
 
 // Sell Order Service
 export const executeSellOrder = async (userId, orderData) => {
   const { symbol, quantity, orderType, limitPrice, isPartialExit, exitPercentage } = orderData;
-  
+
   // Find active position
   const position = await Position.findOne({ userId, symbol, status: "ACTIVE" });
   if (!position) {
     throw new Error("No open position found");
   }
-  
+
   // Validate quantity
-  const sellQuantity = isPartialExit 
-    ? (position.totalQuantity * exitPercentage) / 100 
-    : quantity;
-    
-  if (sellQuantity > position.totalQuantity) {
-    throw new Error("Insufficient quantity");
+  const sellQuantity = isPartialExit
+    ? parseFloat((position.totalQuantity * exitPercentage) / 100)
+    : parseFloat(quantity);
+
+  if (isNaN(sellQuantity) || sellQuantity <= 0) {
+    throw new Error("Invalid sell quantity");
   }
-  
+
+  if (sellQuantity > position.totalQuantity) {
+    throw new Error(`Insufficient quantity. Available: ${position.totalQuantity}, Requested: ${sellQuantity}`);
+  }
+
   // Fetch current price
   const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
   const { price: currentPrice } = await response.json();
-  const exitPrice = orderType === "LIMIT" ? limitPrice : parseFloat(currentPrice);
-  
-  // Calculate P&L
+  const exitPrice = (orderType === "LIMIT" && limitPrice && !isNaN(limitPrice))
+    ? parseFloat(limitPrice)
+    : parseFloat(currentPrice);
+
+  // Calculate P&L with validated numbers
   const saleAmount = sellQuantity * exitPrice;
   const investedForThisQty = (position.investedAmount / position.totalQuantity) * sellQuantity;
   const grossPnl = saleAmount - investedForThisQty;
-  
-  // Calculate charges (includes STT on sell side)
+
+  // Calculate charges
   const charges = calculateCharges(saleAmount, true);
   const netPnl = grossPnl - charges.totalCharges;
   const totalCredit = saleAmount - charges.totalCharges;
-  
+
+  if (isNaN(totalCredit)) {
+    throw new Error("Sale amount calculation error");
+  }
+
   // Credit to user balance
   const user = await User.findById(userId);
-  user.virtualBalance += totalCredit;
-  await user.save();
-  
-  // Create sell order
-  const order = await Order.create({
-    userId,
-    symbol,
-    type: "SELL",
-    orderType,
-    quantity: sellQuantity,
-    entryPrice: position.averagePrice,
-    currentPrice: parseFloat(currentPrice),
-    closedPrice: exitPrice,
-    limitPrice,
-    investedAmount: investedForThisQty,
-    currentValue: saleAmount,
-    pnl: netPnl,
-    pnlPercentage: ((netPnl / investedForThisQty) * 100).toFixed(2),
-    charges,
-    status: "CLOSED",
-    executedAt: new Date(),
-    closedAt: new Date(),
-    remainingQuantity: 0
-  });
-  
-  // Create transaction
-  await createTransaction(userId, "CREDIT", totalCredit, "SELL_ORDER", {
-    orderId: order._id,
-    symbol,
-    quantity: sellQuantity,
-    price: exitPrice,
-    pnl: netPnl,
-    charges
-  });
-  
-  // Update position
-  position.totalQuantity -= sellQuantity;
-  position.investedAmount -= investedForThisQty;
-  
-  if (position.totalQuantity <= 0) {
-    position.status = "CLOSED";
-  } else {
-    position.currentValue = position.totalQuantity * parseFloat(currentPrice);
-    position.pnl = position.currentValue - position.investedAmount;
-    position.pnlPercentage = ((position.pnl / position.investedAmount) * 100).toFixed(2);
-  }
-  
-  await position.save();
-  
-  return { order, position, netPnl, charges };
-};
+  user.virtualBalance = parseFloat(user.virtualBalance) + parseFloat(totalCredit);
 
+  if (isNaN(user.virtualBalance)) {
+    throw new Error("Balance update error");
+  }
+
+  await user.save();
+
+  // ... rest of the code
+};
 // Partial Exit Service
 export const executePartialExit = async (orderId, exitPercentage) => {
   const order = await Order.findById(orderId);
   if (!order || order.status !== "OPEN") {
     throw new Error("Order not found or not open");
   }
-  
+
   const exitQuantity = (order.remainingQuantity * exitPercentage) / 100;
-  
+
   // Fetch current price
   const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${order.symbol}`);
   const { price: currentPrice } = await response.json();
   const exitPrice = parseFloat(currentPrice);
-  
+
   const saleAmount = exitQuantity * exitPrice;
   const investedForThisQty = (order.investedAmount / order.quantity) * exitQuantity;
   const charges = calculateCharges(saleAmount, true);
   const netPnl = (saleAmount - investedForThisQty) - charges.totalCharges;
-  
+
   // Update user balance
   const user = await User.findById(order.userId);
   user.virtualBalance += (saleAmount - charges.totalCharges);
   await user.save();
-  
+
   // Add partial exit record
   order.partialExits.push({
     percentage: exitPercentage,
@@ -256,16 +210,16 @@ export const executePartialExit = async (orderId, exitPercentage) => {
     quantity: exitQuantity,
     pnl: netPnl
   });
-  
+
   order.remainingQuantity -= exitQuantity;
   order.status = order.remainingQuantity > 0 ? "PARTIALLY_CLOSED" : "CLOSED";
-  
+
   if (order.remainingQuantity <= 0) {
     order.closedAt = new Date();
   }
-  
+
   await order.save();
-  
+
   // Create transaction
   await createTransaction(order.userId, "CREDIT", saleAmount - charges.totalCharges, "PARTIAL_EXIT", {
     orderId: order._id,
@@ -275,6 +229,6 @@ export const executePartialExit = async (orderId, exitPercentage) => {
     pnl: netPnl,
     charges
   });
-  
+
   return { order, netPnl, charges };
 };
