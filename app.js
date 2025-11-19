@@ -8,6 +8,7 @@ import balanceRoutes from "./routes/balanceRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
 import stockRoutes from "./routes/stockRoutes.js";
 import tradingRoutes from "./routes/tradingRoutes.js";
+import watchlistRoutes from "./routes/watchListRoutes.js";
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use(morgan("combined"));
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/user/watchlist",watchlistRoutes )
 app.use("/api/balance", balanceRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/stocks", stockRoutes);
