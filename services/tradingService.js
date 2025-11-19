@@ -72,14 +72,24 @@ export const executeBuyOrder = async (userId, orderData) => {
 
     // Fetch current price from Binance
     const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
-    const { price: currentPrice } = await response.json();
+    const data = await response.json();
+
+    console.log("🔍 Raw Binance Response:", JSON.stringify(data, null, 2));
+
+    // The price comes as a string in the 'price' field
+    const currentPrice = parseFloat(data.price);
+
+    if (!currentPrice || isNaN(currentPrice)) {
+      console.error("❌ Failed to parse price from Binance:", data);
+      throw new Error("Failed to fetch current price from market");
+    }
 
     console.log(`💰 Current Price: $${currentPrice}`);
 
     // Use currentPrice if limitPrice is not provided or invalid
     const entryPrice = (orderType === "LIMIT" && limitPrice && !isNaN(limitPrice))
       ? parseFloat(limitPrice)
-      : parseFloat(currentPrice);
+      : currentPrice;
 
     console.log(`🎯 Entry Price: $${entryPrice}`);
 
@@ -87,6 +97,9 @@ export const executeBuyOrder = async (userId, orderData) => {
     const investedAmount = parseFloat(quantity) * entryPrice;
 
     if (isNaN(investedAmount) || investedAmount <= 0) {
+      console.error("❌ Investment calculation failed:");
+      console.error("Quantity:", quantity);
+      console.error("Entry Price:", entryPrice);
       throw new Error("Invalid investment amount calculated");
     }
 
@@ -134,7 +147,7 @@ export const executeBuyOrder = async (userId, orderData) => {
       orderType,
       quantity: parseFloat(quantity),
       entryPrice,
-      currentPrice: parseFloat(currentPrice),
+      currentPrice,
       limitPrice: limitPrice ? parseFloat(limitPrice) : null,
       stopLossPrice: stopLossPrice ? parseFloat(stopLossPrice) : null,
       takeProfitPrice: takeProfitPrice ? parseFloat(takeProfitPrice) : null,
@@ -168,8 +181,8 @@ export const executeBuyOrder = async (userId, orderData) => {
       position.averagePrice = totalInvested / totalQty;
       position.totalQuantity = totalQty;
       position.investedAmount = totalInvested;
-      position.currentValue = totalQty * parseFloat(currentPrice);
-      position.currentPrice = parseFloat(currentPrice);
+      position.currentValue = totalQty * currentPrice;
+      position.currentPrice = currentPrice;
       position.pnl = position.currentValue - position.investedAmount;
       position.pnlPercentage = ((position.pnl / position.investedAmount) * 100).toFixed(2);
       position.orderIds.push(order._id);
@@ -181,7 +194,7 @@ export const executeBuyOrder = async (userId, orderData) => {
         symbol,
         totalQuantity: parseFloat(quantity),
         averagePrice: entryPrice,
-        currentPrice: parseFloat(currentPrice),
+        currentPrice,
         investedAmount,
         currentValue: investedAmount,
         orderIds: [order._id],
@@ -204,7 +217,7 @@ export const executeBuyOrder = async (userId, orderData) => {
   }
 };
 
-// Sell Order Service
+// Sell Order Service - Fix the same issue
 export const executeSellOrder = async (userId, orderData) => {
   console.log("\n🔴 === SELL ORDER INITIATED ===");
   console.log("User ID:", userId);
@@ -238,10 +251,20 @@ export const executeSellOrder = async (userId, orderData) => {
 
     // Fetch current price
     const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
-    const { price: currentPrice } = await response.json();
+    const data = await response.json();
+
+    console.log("🔍 Raw Binance Response:", JSON.stringify(data, null, 2));
+
+    const currentPrice = parseFloat(data.price);
+
+    if (!currentPrice || isNaN(currentPrice)) {
+      console.error("❌ Failed to parse price from Binance:", data);
+      throw new Error("Failed to fetch current price from market");
+    }
+
     const exitPrice = (orderType === "LIMIT" && limitPrice && !isNaN(limitPrice))
       ? parseFloat(limitPrice)
-      : parseFloat(currentPrice);
+      : currentPrice;
 
     console.log(`💰 Current Price: $${currentPrice}`);
     console.log(`🎯 Exit Price: $${exitPrice}`);
@@ -295,7 +318,7 @@ export const executeSellOrder = async (userId, orderData) => {
       orderType,
       quantity: sellQuantity,
       entryPrice: position.averagePrice,
-      currentPrice: parseFloat(currentPrice),
+      currentPrice,
       closedPrice: exitPrice,
       limitPrice: limitPrice ? parseFloat(limitPrice) : null,
       investedAmount: investedForThisQty,
@@ -329,7 +352,7 @@ export const executeSellOrder = async (userId, orderData) => {
       position.status = "CLOSED";
       console.log("📊 Position fully closed");
     } else {
-      position.currentValue = position.totalQuantity * parseFloat(currentPrice);
+      position.currentValue = position.totalQuantity * currentPrice;
       position.pnl = position.currentValue - position.investedAmount;
       position.pnlPercentage = ((position.pnl / position.investedAmount) * 100).toFixed(2);
       console.log(`📊 Position partially closed - Remaining: ${position.totalQuantity}`);
